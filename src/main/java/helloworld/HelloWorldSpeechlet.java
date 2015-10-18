@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 import org.apache.log4j.BasicConfigurator;
 
 import com.amazon.speech.slu.Intent;
+import com.amazon.speech.slu.Slot;
 import com.amazon.speech.speechlet.IntentRequest;
 import com.amazon.speech.speechlet.LaunchRequest;
 import com.amazon.speech.speechlet.Session;
@@ -42,11 +43,18 @@ import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
 /**
  * This sample shows how to create a simple speechlet for handling speechlet requests.
  */
 public class HelloWorldSpeechlet implements Speechlet {
     private static final Logger log = LoggerFactory.getLogger(HelloWorldSpeechlet.class);
+    private static final String QUEUENAME = "https://sqs.us-west-2.amazonaws.com/186675908400/alexa2";
+
+    private static final Pattern LOCK = Pattern.compile("(good\\s*bye|leaving|lock)");
+    private static final Pattern BED = Pattern.compile("(night|bed)");
 
     @Override
     public void onSessionStarted(final SessionStartedRequest request, final Session session)
@@ -74,25 +82,9 @@ public class HelloWorldSpeechlet implements Speechlet {
         Intent intent = request.getIntent();
         String intentName = (intent != null) ? intent.getName() : null;
 
-        log.info("Before SQS Client");
-        try {
-        AmazonSQS sqs = new AmazonSQSClient();
-        //AmazonSQS sqs = new AmazonSQSClient(credentials);
-        log.info("Before SQS region");
-        Region usWest2 = Region.getRegion(Regions.US_WEST_2);
-        sqs.setRegion(usWest2);
 
-        log.info("Before SQS send");
-        sqs.sendMessage(new SendMessageRequest("https://sqs.us-west-2.amazonaws.com/186675908400/alexa2", "This is my message text."));
-        log.info("After SQS send");
-        } catch (Exception e) {
-           log.info("Failed: " + e.getMessage());
-        }
-
-        if ("HelloWorldIntent".equals(intentName)) {
-            return getHelloResponse();
-        } else if ("HelpIntent".equals(intentName)) {
-            return getHelpResponse();
+        if ("SpecialScene".equals(intentName)) {
+            return getHelloResponse(intent);
         } else {
             throw new SpeechletException("Invalid Intent");
         }
@@ -112,11 +104,11 @@ public class HelloWorldSpeechlet implements Speechlet {
      * @return SpeechletResponse spoken and visual response for the given intent
      */
     private SpeechletResponse getWelcomeResponse() {
-        String speechText = "Welcome to the Alexa Skills Kit, you can say hello";
+        String speechText = "House Control Two Online";
 
         // Create the Simple card content.
         SimpleCard card = new SimpleCard();
-        card.setTitle("HelloWorld");
+        card.setTitle("House Online");
         card.setContent(speechText);
 
         // Create the plain text output.
@@ -135,9 +127,16 @@ public class HelloWorldSpeechlet implements Speechlet {
      *
      * @return SpeechletResponse spoken and visual response for the given intent
      */
-    private SpeechletResponse getHelloResponse() {
-        String speechText = "Hello world";
+    private SpeechletResponse getHelloResponse(Intent intent) {
+        Slot actionSlot = intent.getSlot("helper");
+        String speechText = actionSlot.getValue();
 
+        Matcher mLOCK = LOCK.matcher(speechText);
+        Matcher mBED = BED.matcher(speechText);
+
+        AmazonSQS sqs = new AmazonSQSClient();
+        Region usWest2 = Region.getRegion(Regions.US_WEST_2);
+        sqs.setRegion(usWest2);
         // Create the Simple card content.
         SimpleCard card = new SimpleCard();
         card.setTitle("HelloWorld");
@@ -146,31 +145,21 @@ public class HelloWorldSpeechlet implements Speechlet {
         // Create the plain text output.
         PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
         speech.setText(speechText);
+
+	if (mLOCK.find()) {
+          speech.setText("I am turning everything off and lock up in 2 minutes.");
+          card.setContent("Locked up");
+          sqs.sendMessage(new SendMessageRequest(QUEUENAME, "lock"));
+        } else if (mBED.find() ) {
+          speech.setText("Shutting down the house for the night. Goodnight!");
+          card.setContent("Gone to bed");
+          sqs.sendMessage(new SendMessageRequest(QUEUENAME, "goodnight"));
+        } else {
+          speech.setText("Unknown command");
+          card.setContent("Unknown command");
+ 	}
 
         return SpeechletResponse.newTellResponse(speech, card);
     }
 
-    /**
-     * Creates a {@code SpeechletResponse} for the help intent.
-     *
-     * @return SpeechletResponse spoken and visual response for the given intent
-     */
-    private SpeechletResponse getHelpResponse() {
-        String speechText = "You can say hello to me!";
-
-        // Create the Simple card content.
-        SimpleCard card = new SimpleCard();
-        card.setTitle("HelloWorld");
-        card.setContent(speechText);
-
-        // Create the plain text output.
-        PlainTextOutputSpeech speech = new PlainTextOutputSpeech();
-        speech.setText(speechText);
-
-        // Create reprompt
-        Reprompt reprompt = new Reprompt();
-        reprompt.setOutputSpeech(speech);
-
-        return SpeechletResponse.newAskResponse(speech, reprompt, card);
-    }
 }
