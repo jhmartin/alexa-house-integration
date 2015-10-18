@@ -11,6 +11,7 @@ package helloworld;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.apache.log4j.BasicConfigurator;
 
 import com.amazon.speech.slu.Intent;
 import com.amazon.speech.speechlet.IntentRequest;
@@ -24,6 +25,22 @@ import com.amazon.speech.speechlet.SpeechletResponse;
 import com.amazon.speech.ui.PlainTextOutputSpeech;
 import com.amazon.speech.ui.Reprompt;
 import com.amazon.speech.ui.SimpleCard;
+
+import java.util.List;
+import java.util.Map.Entry;
+
+import com.amazonaws.AmazonClientException;
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.regions.Region;
+import com.amazonaws.regions.Regions;
+import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.AmazonSQSClient;
+import com.amazonaws.services.sqs.model.CreateQueueRequest;
+import com.amazonaws.services.sqs.model.DeleteMessageRequest;
+import com.amazonaws.services.sqs.model.DeleteQueueRequest;
+import com.amazonaws.services.sqs.model.Message;
+import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
+import com.amazonaws.services.sqs.model.SendMessageRequest;
 
 /**
  * This sample shows how to create a simple speechlet for handling speechlet requests.
@@ -50,11 +67,27 @@ public class HelloWorldSpeechlet implements Speechlet {
     @Override
     public SpeechletResponse onIntent(final IntentRequest request, final Session session)
             throws SpeechletException {
+        BasicConfigurator.configure();
         log.info("onIntent requestId={}, sessionId={}", request.getRequestId(),
                 session.getSessionId());
 
         Intent intent = request.getIntent();
         String intentName = (intent != null) ? intent.getName() : null;
+
+        log.info("Before SQS Client");
+        try {
+        AmazonSQS sqs = new AmazonSQSClient();
+        //AmazonSQS sqs = new AmazonSQSClient(credentials);
+        log.info("Before SQS region");
+        Region usWest2 = Region.getRegion(Regions.US_WEST_2);
+        sqs.setRegion(usWest2);
+
+        log.info("Before SQS send");
+        sqs.sendMessage(new SendMessageRequest("https://sqs.us-west-2.amazonaws.com/186675908400/alexa2", "This is my message text."));
+        log.info("After SQS send");
+        } catch (Exception e) {
+           log.info("Failed: " + e.getMessage());
+        }
 
         if ("HelloWorldIntent".equals(intentName)) {
             return getHelloResponse();
