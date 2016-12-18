@@ -51,7 +51,7 @@ import java.util.regex.Pattern;
  */
 public class HelloWorldSpeechlet implements Speechlet {
     private static final Logger log = LoggerFactory.getLogger(HelloWorldSpeechlet.class);
-    private static final String QUEUENAME = "https://sqs.us-west-2.amazonaws.com/186675908400/alexa2";
+    private static final String QUEUENAME = "https://sqs.us-west-2.amazonaws.com/186675908400/alexa";
 
     private static final Pattern LOCK = Pattern.compile("(good\\s*bye|leaving|lock)");
     private static final Pattern BED = Pattern.compile("(night|bed)");
